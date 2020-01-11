@@ -31,7 +31,7 @@ def torrents_with_full_ratio(torrents):
 def torrent_has_full_ratio(torrents, tid):
     return torrents[tid][b'ratio'] > 1
 
-def torrent_meets_tracker_reqs(torrents, tid):
+def _torrent_meets_tracker_reqs(torrents, tid):
     # Assumes all trackers are satisfied if you seed at least 1:1
     # I think this is true?
     if torrent_has_full_ratio(torrents, tid):
@@ -44,9 +44,9 @@ def torrent_meets_tracker_reqs(torrents, tid):
 
 def torrents_that_meet_tracker_reqs(torrents):
     results = []
-    for tid, info in torrents.items():
-        if torrent_meets_tracker_reqs(torrents, tid):
-            results.append(tid)
+    for t in torrents:
+        if t.meets_tracker_reqs():
+            results.append(t._id)
     return results
 
 def get_title_for_torrents(torrents, tids):
@@ -64,7 +64,7 @@ def check_if_torrent_downloaded(torrent):
 
 def get_req_seeding_time_for_tracker(tracker_url):
     # pdb.set_trace()
-    tried_parse = urlparse(tracker_url).netloc.decode('utf-8').split('.')
+    tried_parse = urlparse(tracker_url).netloc.split('.')
     if 'digitalcore' in tried_parse:
         tracker = 'digitalcore'
     elif 'torrentleech' in tried_parse:
@@ -78,39 +78,61 @@ def get_req_seeding_time_for_tracker(tracker_url):
         tracker = 'torrentseeds'
     else:
         tracker = ''
-    return TRACKER_REQS.get(tracker, {}).get('seeding_time', 0)
+    return TRACKER_REQS.get(tracker, {}).get('seeding_time')
 
 
 class TorrentStat:
-    def __init__(self, name=None, ratio=0, seeding_time=0, tracker=None):
-        self.name = name
+    def __init__(self, _id=None, name=None, ratio=0, seeding_time=0, tracker=None):
+        # pdb.set_trace()
+        self._id = _id.decode('utf-8')
+        self.name = name.decode('utf-8')
         self.ratio = ratio
         self.seeding_time = seeding_time
-        self.tracker = tracker
+        self.tracker = tracker.decode('utf-8')
         self.seeding_time_left = self.get_seeding_time_left()
+
+    def is_done_downloading(self):
+        return self.seeding_time > 0
+
+    def can_stop_seeding(self):
+        return self.meets_tracker_reqs()
+
+    def meets_tracker_reqs(self):
+        if self.ratio > 1:
+            return True
+        if self.seeding_time_left is None:
+            return False
+        if self.seeding_time_left.total_seconds() < 0:
+            return True
+        return False
 
     def __str__(self):
         hr_seeding_time = datetime.timedelta(seconds=self.seeding_time)
         hr_seeding_req = datetime.timedelta(seconds=get_req_seeding_time_for_tracker(self.tracker))
         # return f'{self.name}:\t{self.ratio:.2f}\t{hr_seeding_time}/{hr_seeding_req}'
-        return f'{self.name}:{self.seeding_time_left}'
+        if not self.can_stop_seeding():
+            seeding_output = f'{self.seeding_time_left} left to seed'
+        else:
+            seeding_output = f'Ratio: {self.ratio}'
+        return f'{self.name[:25]}:\t\t{seeding_output}'
+
+    def __repl__(self):
+        return str(self)
 
     def get_seeding_time_left(self):
+        time_left = get_req_seeding_time_for_tracker(self.tracker)
+        if not time_left:
+            return None
         hr_seeding_time = datetime.timedelta(seconds=self.seeding_time)
-        hr_seeding_req = datetime.timedelta(seconds=TRACKER_REQS.get(self.tracker, 0))
+        hr_seeding_req = datetime.timedelta(seconds=time_left)
         return hr_seeding_req - hr_seeding_time
 
 
     def get_reqd_seeding_time_in_seconds(self):
         return TRACKER_REQS[self.tracker]
 
-def print_all_stats(torrents):
-    # Name, ratio, seeding_time/required time
-    results = []
-    for t in torrents.values():
-        res = TorrentStat(t[b'name'], t[b'ratio'], t[b'seeding_time'], t[b'tracker'])
-        results.append(res)
-    sorted_list = sorted(results, key=lambda x: x.seeding_time_left)
+def print_all_stats(torrent_stats):
+    sorted_list = sorted([r for r in torrent_stats if r.seeding_time_left is not None], key=lambda x: x.seeding_time_left)
     for r in sorted_list:
         print(r)
 
@@ -124,21 +146,31 @@ def main():
 
     client = login()
     # list of keys? https://forum.deluge-torrent.org/viewtopic.php?t=54793
-    torrents = client.call('core.get_torrents_status', {},
+    res_torrents = client.call('core.get_torrents_status', {},
                           ['name', 'progress', 'ratio', 'tracker',
                            'seeding_time', 'total_size'])
+
+    torrents = [TorrentStat(_id, torrent[b'name'], torrent[b'ratio'], torrent[b'seeding_time'], torrent[b'tracker'])
+                for _id, torrent in res_torrents.items()]
 
     if args.all:
         print_all_stats(torrents)
         import sys
         sys.exit(0)
 
-    # tids = torrents_with_full_ratio(torrents)
-    tids = torrents_that_meet_tracker_reqs(torrents)
-    for tid in tids:
-        if check_if_torrent_downloaded(torrents[tid]):
-            print(torrents[tid][b'name'].decode('utf-8'), "is downloaded and meets tracker seeding requirements. Can be safely deleted.")
+    for torrent in torrents:
+        if torrent.can_stop_seeding():
+            print(torrent)
 
 
 if __name__ == '__main__':
     main()
+
+# Script ideas
+# Would love to use this script to help me figure out what to rsync down to my home server
+# i.e. A particular torrent is close to meeting the torrent requirements, but isn't synced off the seedbox,
+# so I should rsync that next, instead of just going in alphabetical order.
+# (Although, if I can figure out why my download speeds are only a couple Mbps, maybe this won't be as relevant.)
+
+# Should keep a list of files I don't care about keeping (and am just using to get my ratio up)
+# Check that list against the list of torrents that have finished seeding, delete those.
