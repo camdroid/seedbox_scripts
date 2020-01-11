@@ -21,39 +21,6 @@ def was_downloaded_to_raspi():
     # downloaded (at least, if I want to keep them)
     pass
 
-def torrents_with_full_ratio(torrents):
-    tcopy = copy.deepcopy(torrents)
-    for tid, info in torrents.items():
-        if info[b'ratio'] < 1:
-            tcopy.pop(tid)
-    return [_id.decode('utf-8') for _id in tcopy]
-
-def torrent_has_full_ratio(torrents, tid):
-    return torrents[tid][b'ratio'] > 1
-
-def _torrent_meets_tracker_reqs(torrents, tid):
-    # Assumes all trackers are satisfied if you seed at least 1:1
-    # I think this is true?
-    if torrent_has_full_ratio(torrents, tid):
-        return True
-    info = torrents[tid]
-    reqd_time = get_req_seeding_time_for_tracker(info[b'tracker'])
-    if info[b'seeding_time'] > reqd_time:
-        return True
-    return False
-
-def torrents_that_meet_tracker_reqs(torrents):
-    results = []
-    for t in torrents:
-        if t.meets_tracker_reqs():
-            results.append(t._id)
-    return results
-
-def get_title_for_torrents(torrents, tids):
-    # TODO having to convert everything to/from binary is going to get real
-    # old, real fast.
-    # pdb.set_trace()
-    return [torrents[tid][b'name'] for tid in tids]
 
 def check_if_torrent_downloaded(torrent):
     with open('fully_downloaded.txt') as downloads:
@@ -107,9 +74,6 @@ class TorrentStat:
         return False
 
     def __str__(self):
-        hr_seeding_time = datetime.timedelta(seconds=self.seeding_time)
-        hr_seeding_req = datetime.timedelta(seconds=get_req_seeding_time_for_tracker(self.tracker))
-        # return f'{self.name}:\t{self.ratio:.2f}\t{hr_seeding_time}/{hr_seeding_req}'
         if not self.can_stop_seeding():
             seeding_output = f'{self.seeding_time_left} left to seed'
         else:
@@ -127,9 +91,9 @@ class TorrentStat:
         hr_seeding_req = datetime.timedelta(seconds=time_left)
         return hr_seeding_req - hr_seeding_time
 
-
     def get_reqd_seeding_time_in_seconds(self):
         return TRACKER_REQS[self.tracker]
+
 
 def print_all_stats(torrent_stats):
     sorted_list = sorted([r for r in torrent_stats if r.seeding_time_left is not None], key=lambda x: x.seeding_time_left)
@@ -137,11 +101,10 @@ def print_all_stats(torrent_stats):
         print(r)
 
 
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--all', action='store_true')
+    parser.add_argument('--done', action='store_true')
     args = parser.parse_args()
 
     client = login()
@@ -155,12 +118,10 @@ def main():
 
     if args.all:
         print_all_stats(torrents)
-        import sys
-        sys.exit(0)
-
-    for torrent in torrents:
-        if torrent.can_stop_seeding():
-            print(torrent)
+    elif args.done:
+        for torrent in torrents:
+            if torrent.can_stop_seeding():
+                print(torrent)
 
 
 if __name__ == '__main__':
