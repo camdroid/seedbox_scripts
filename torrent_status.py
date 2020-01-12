@@ -9,11 +9,6 @@ import sys
 import json
 import pdb
 
-def login():
-    client = DelugeRPCClient(host, port, username, password)
-    client.connect()
-    return client
-
 def was_downloaded_to_raspi():
     # idea - make a json file of the files that are downloaded off the seedbox
     # have a script on the raspi update that json file when rsync runs
@@ -24,15 +19,7 @@ def was_downloaded_to_raspi():
     pass
 
 
-def check_if_torrent_downloaded(torrent):
-    with open('fully_downloaded.txt') as downloads:
-        for line in downloads:
-            if torrent[b'name'].decode('utf-8') in line:
-                return True
-    return False
-
 def get_req_seeding_time_for_tracker(tracker_url):
-    # pdb.set_trace()
     tried_parse = urlparse(tracker_url).netloc.split('.')
     if 'digitalcore' in tried_parse:
         tracker = 'digitalcore'
@@ -100,6 +87,28 @@ class TorrentStat:
         return TRACKER_REQS[self.tracker]
 
 
+class DelugeHelper:
+    def __init__(self):
+        self.login()
+
+    def login(self):
+        self.client = DelugeRPCClient(host, port, username, password)
+        self.client.connect()
+
+    def get_torrents(self):
+        # list of keys? https://forum.deluge-torrent.org/viewtopic.php?t=54793
+        res_torrents = self.client.call('core.get_torrents_status', {},
+                              ['name', 'progress', 'ratio', 'tracker',
+                               'seeding_time', 'total_size'])
+
+        torrents = [TorrentStat(_id, torrent[b'name'], torrent[b'ratio'], torrent[b'seeding_time'], torrent[b'tracker'])
+                    for _id, torrent in res_torrents.items()]
+        return torrents
+
+    def delete_torrent(self, torrent_id):
+        self.client.core.remove_torrent(torrent_id, remove_data=True)
+
+
 def print_all_stats(torrent_stats, sort='seeding_time_left'):
     sorted_list = sorted([r for r in torrent_stats if getattr(r, sort) is not None], key=lambda x: getattr(x, sort))
     for r in sorted_list:
@@ -119,26 +128,24 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--all', action='store_true')
     parser.add_argument('--done', action='store_true')
-    parser.add_argument('--sort', type=str)
+    parser.add_argument('--sort', type=str, default='name')
     parser.add_argument('-lf', '--list-fodder', action='store_true')
+    parser.add_argument('--delete', type=str)
     args = parser.parse_args()
 
-    client = login()
-    # list of keys? https://forum.deluge-torrent.org/viewtopic.php?t=54793
-    res_torrents = client.call('core.get_torrents_status', {},
-                          ['name', 'progress', 'ratio', 'tracker',
-                           'seeding_time', 'total_size'])
-
-    torrents = [TorrentStat(_id, torrent[b'name'], torrent[b'ratio'], torrent[b'seeding_time'], torrent[b'tracker'])
-                for _id, torrent in res_torrents.items()]
+    deluge_helper = DelugeHelper()
+    torrents = deluge_helper.get_torrents()
 
     if args.list_fodder:
         list_fodder_torrents(torrents)
 
+    if args.delete:
+        deluge_helper.delete_torrent(args.delete)
 
     if args.sort and args.sort not in ['ratio', 'name']:
         print('Must specify sort of an accepted type (see code)')
         sys.exit(1)
+
 
     if args.all:
         print_all_stats(torrents, args.sort)
