@@ -37,6 +37,12 @@ def get_req_seeding_time_for_tracker(tracker_url):
     return TRACKER_REQS.get(tracker, {}).get('seeding_time')
 
 
+def gigs_left_on_disk():
+    import os
+    stats = os.statsvfs()
+    return stats.f_bsize * stats.f_bavail / 1024**3
+
+
 class TorrentStat:
     def __init__(self, _id=None, name=None, ratio=0, seeding_time=0, tracker=None):
         self._id = _id.decode('utf-8')
@@ -45,12 +51,16 @@ class TorrentStat:
         self.seeding_time = seeding_time
         self.tracker = tracker.decode('utf-8')
         self.seeding_time_left = self.get_seeding_time_left()
+        self.fodder = False
 
     def is_done_downloading(self):
         return self.seeding_time > 0
 
     def can_stop_seeding(self):
         return self.meets_tracker_reqs()
+
+    def mark_as_fodder(self):
+        self.fodder = True
 
     def meets_tracker_reqs(self):
         if self.ratio > 1:
@@ -70,9 +80,13 @@ class TorrentStat:
             seeding_output = f'No requirement data for tracker {self.tracker[:40]}'
         else:
             seeding_output = f'{self.seeding_time_left} left to seed'
-        return f'{self.name[:25]}:\t\t{seeding_output}'
 
-    def __repl__(self):
+        extra = ''
+        if self.fodder:
+            extra = f'{self._id}'
+        return f'{self.name[:25]}:\t\t{seeding_output}\t\t{extra}'
+
+    def __repr__(self):
         return str(self)
 
     def get_seeding_time_left(self):
@@ -118,10 +132,13 @@ def print_all_stats(torrent_stats, sort='seeding_time_left'):
 def list_fodder_torrents(torrents):
     with open('do_not_rsync.json') as json_file:
         data = json.load(json_file)
-        for t in torrents:
-            for skip in data['do_not_sync']:
-                if skip in t.name:
-                    print(t)
+    fodder = []
+    for t in torrents:
+        for skip in data['do_not_sync']:
+            if skip in t.name:
+                t.mark_as_fodder()
+                fodder.append(t)
+    return fodder
 
 
 def main():
@@ -137,7 +154,9 @@ def main():
     torrents = deluge_helper.get_torrents()
 
     if args.list_fodder:
-        list_fodder_torrents(torrents)
+        import pprint
+        pp = pprint.PrettyPrinter()
+        pp.pprint(list_fodder_torrents(torrents))
 
     if args.delete:
         deluge_helper.delete_torrent(args.delete)
