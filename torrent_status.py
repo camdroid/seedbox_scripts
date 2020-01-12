@@ -50,7 +50,6 @@ def get_req_seeding_time_for_tracker(tracker_url):
 
 class TorrentStat:
     def __init__(self, _id=None, name=None, ratio=0, seeding_time=0, tracker=None):
-        # pdb.set_trace()
         self._id = _id.decode('utf-8')
         self.name = name.decode('utf-8')
         self.ratio = ratio
@@ -74,10 +73,14 @@ class TorrentStat:
         return False
 
     def __str__(self):
-        if not self.can_stop_seeding():
-            seeding_output = f'{self.seeding_time_left} left to seed'
-        else:
+        if not self.is_done_downloading():
+            seeding_output = f'Still downloading...'
+        elif self.can_stop_seeding():
             seeding_output = f'Ratio: {self.ratio}'
+        elif self.seeding_time_left is None:
+            seeding_output = f'No requirement data for tracker {self.tracker[:40]}'
+        else:
+            seeding_output = f'{self.seeding_time_left} left to seed'
         return f'{self.name[:25]}:\t\t{seeding_output}'
 
     def __repl__(self):
