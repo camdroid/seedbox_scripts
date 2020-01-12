@@ -5,6 +5,8 @@ import datetime
 import argparse
 from urllib.parse import urlparse
 import copy
+import sys
+import json
 import pdb
 
 def login():
@@ -98,16 +100,27 @@ class TorrentStat:
         return TRACKER_REQS[self.tracker]
 
 
-def print_all_stats(torrent_stats):
-    sorted_list = sorted([r for r in torrent_stats if r.seeding_time_left is not None], key=lambda x: x.seeding_time_left)
+def print_all_stats(torrent_stats, sort='seeding_time_left'):
+    sorted_list = sorted([r for r in torrent_stats if getattr(r, sort) is not None], key=lambda x: getattr(x, sort))
     for r in sorted_list:
         print(r)
+
+
+def list_fodder_torrents(torrents):
+    with open('do_not_rsync.json') as json_file:
+        data = json.load(json_file)
+        for t in torrents:
+            for skip in data['do_not_sync']:
+                if skip in t.name:
+                    print(t)
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--all', action='store_true')
     parser.add_argument('--done', action='store_true')
+    parser.add_argument('--sort', type=str)
+    parser.add_argument('-lf', '--list-fodder', action='store_true')
     args = parser.parse_args()
 
     client = login()
@@ -119,10 +132,18 @@ def main():
     torrents = [TorrentStat(_id, torrent[b'name'], torrent[b'ratio'], torrent[b'seeding_time'], torrent[b'tracker'])
                 for _id, torrent in res_torrents.items()]
 
+    if args.list_fodder:
+        list_fodder_torrents(torrents)
+
+
+    if args.sort and args.sort not in ['ratio', 'name']:
+        print('Must specify sort of an accepted type (see code)')
+        sys.exit(1)
+
     if args.all:
-        print_all_stats(torrents)
+        print_all_stats(torrents, args.sort)
     elif args.done:
-        for torrent in torrents:
+        for torrent in sorted(torrents, key=lambda x: getattr(x, args.sort)):
             if torrent.can_stop_seeding():
                 print(torrent)
 
