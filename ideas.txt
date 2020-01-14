@@ -1,0 +1,11 @@
+Non-fodder torrents should take higher-priority than fodder torrents.
+
+What I'm picturing is that I have a folder of torrent files, and as soon as a file has both completed its tracker requirements and has been rsynced to my local server (if it's a non-fodder torrent), it should be deleted, and the next highest-priority torrent should start.
+
+If it's a fodder torrent file, then I should keep it for as long as I'm getting a good amount of upload credit from it. To start, maybe auto-delete all torrents that are still at 0.00 ratio after meeting the tracker requirements for seeding time?
+
+At some point I should probably set up an auto-downloader to take in RSS feeds and auto-add certain torrents. Maybe there's a way to just download freeleech torrents (and is that acceptable in the community)?
+
+Also, I need to write a script around the rsync functionality. I need to figure out how to prioritize which files are rsynced to my local server - if there's a torrent that's almost done with its seeding requirements that hasn't been synced yet, that should be next in line, so that it can be deleted as soon as those requirements are satisfied, and the next torrent can get started. Although, maybe in order for that auto-deletion, it should also make sure that the ratio is 0?
+
+If I write a script around rsync, I can also have it write to a file on the seedbox once the sync is done, so then another script could check which files have been successfully finished in preparation for auto-deletion.
