@@ -84,6 +84,14 @@ def list_fodder_torrents(torrents):
                 fodder.append(t)
     return fodder
 
+def auto_delete(deluge_helper, request_confirmation):
+    for torrent in list_fodder_torrents(deluge_helper.get_torrents()):
+        if torrent.ratio == 0:
+            ans = input(f'Are you sure you want to delete {torrent.name}? (y/n) ')
+            if ans == 'y':
+                print(f'Deleting {torrent.name}')
+                deluge_helper.delete_torrent(torrent.id)
+
 
 def main():
     parser = argparse.ArgumentParser()
