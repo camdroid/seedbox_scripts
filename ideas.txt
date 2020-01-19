@@ -9,3 +9,13 @@ At some point I should probably set up an auto-downloader to take in RSS feeds a
 Also, I need to write a script around the rsync functionality. I need to figure out how to prioritize which files are rsynced to my local server - if there's a torrent that's almost done with its seeding requirements that hasn't been synced yet, that should be next in line, so that it can be deleted as soon as those requirements are satisfied, and the next torrent can get started. Although, maybe in order for that auto-deletion, it should also make sure that the ratio is 0?
 
 If I write a script around rsync, I can also have it write to a file on the seedbox once the sync is done, so then another script could check which files have been successfully finished in preparation for auto-deletion.
+
+Priority for deleting torrents:
+* Completion (should never auto-delete an incomplete torrent)
+* Ratio (prioritize deleting torrents that have finished their time reqs but still have a 0 ratio/0 upload)
+* Size (if there are multiple 0-ratio finished torrents, delete the largest ones first)
+    * Well, maybe just delete all of them? No need to worry about priority
+
+How do I want to track cross-seeding? If a torrent is freeleech on one tracker but not on another, how can I automate checking for that? May have to build a scraper to search the sites (or parse the RSS feeds and see if anything matches).
+
+I'm having a tough time getting my raspi to unrar anything, so maybe I should make these auto-unrar completed torrents, and then only sync the video files. Unsure if there would be a way to put it back to the way it was originally downloaded (in case I wanted to re-seed it).
