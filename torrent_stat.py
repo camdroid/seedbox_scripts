@@ -62,11 +62,14 @@ class TorrentStat:
 
 def get_req_seeding_time_for_tracker(tracker_url):
     tried_parse = urlparse(tracker_url).netloc.split('.')
+    for key, val in TRACKER_REQS.items():
+        if key in tried_parse:
+            return val['seeding_time']
     if 'digitalcore' in tried_parse:
         tracker = 'digitalcore'
     elif 'torrentleech' in tried_parse:
         tracker = 'torrentleech'
-    elif 'leech' in tried_parse:
+    elif 'tleechreload' in tried_parse:
         tracker = 'torrentleech'
     elif 'archive' in tried_parse:
         # Internet Archive

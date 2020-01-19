@@ -20,29 +20,10 @@ def was_downloaded_to_raspi():
     pass
 
 
-def get_req_seeding_time_for_tracker(tracker_url):
-    tried_parse = urlparse(tracker_url).netloc.split('.')
-    if 'digitalcore' in tried_parse:
-        tracker = 'digitalcore'
-    elif 'torrentleech' in tried_parse:
-        tracker = 'torrentleech'
-    elif 'leech' in tried_parse:
-        tracker = 'torrentleech'
-    elif 'archive' in tried_parse:
-        # Internet Archive
-        tracker = 'archive'
-    elif 'torrentseeds' in tried_parse:
-        tracker = 'torrentseeds'
-    else:
-        tracker = ''
-    return TRACKER_REQS.get(tracker, {}).get('seeding_time')
-
-
 def gigs_left_on_disk():
     import os
     stats = os.statsvfs()
     return stats.f_bsize * stats.f_bavail / 1024**3
-
 
 
 class DelugeHelper:
@@ -78,7 +59,7 @@ def list_fodder_torrents(torrents):
         data = json.load(json_file)
     fodder = []
     for t in torrents:
-        for skip in data['do_not_sync']:
+        for skip in data:
             if skip in t.name:
                 t.mark_as_fodder()
                 fodder.append(t)
