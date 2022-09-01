@@ -4,7 +4,7 @@ cffi==1.13.2
 chardet==3.0.4
 constantly==15.1.0
 cryptography==3.2
-deluge==2.0.3
+deluge==2.1.0
 deluge-client==1.8.0
 hyperlink==19.0.0
 idna==2.8
