@@ -9,7 +9,7 @@ deluge-client==1.8.0
 hyperlink==19.0.0
 idna==2.8
 incremental==17.5.0
-Mako==1.1.0
+Mako==1.2.2
 MarkupSafe==1.1.1
 Pillow==7.0.0
 pkg-resources==0.0.0
